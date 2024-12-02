@@ -1,5 +1,4 @@
-# name
-TetriC
+# TetriC
 ![GIF](https://github.com/TK87code/TetriC/blob/master/Gameplay.gif)
 
 ## Overview
