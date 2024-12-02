@@ -1,10 +1,11 @@
-#include <raylib.h> /* https://www.raylib.com/index.html */
+#include <raylib.h>       /* https://www.raylib.com/index.html */
 #include <stdlib.h>       /* calloc() */
+#include <string.h>       /* strlen() */
 
 #define TET_SIZE 4        /* Size of tetrimino array in x&y */ 
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 450
+#define SCREEN_WIDTH 400
+#define SCREEN_HEIGHT 400
 #define SCREEN_OFFSET 2
 
 #define CELL_SIZE 16      /* Size of cell (which contains tiles) */
@@ -17,8 +18,8 @@
 #define DEFAULT_SPEED 1.1 /* Piece are forced to drop every this time */
 #define DEFAULT_DIFF 0.1  /* Default difficulty */
 #define MAX_DIFF 0.8
-#define INCREASE_DIFF_EVERY 5
-#define DIFF_INCREMENT 0.05
+#define INCREASE_DIFF_EVERY 10
+#define DIFF_STEP 0.05
 
 
 /* Function Prototypes*/
@@ -37,6 +38,7 @@ int main(char argc, char **argv)
     Color colors[10] = {BLACK, SKYBLUE, YELLOW, GREEN, RED, BLUE, ORANGE, PURPLE, GOLD, GRAY}; /* Array of Raylib colors, used for rectangle drawing */ 
     int pos_x, pos_y;         /* Current position of tetrimino piece */
     int current_tet;          /* Current tetrimino id*/
+    int next_tet;             /* Next tetrimino id */
     int current_rotation = 0; /* Current Rotation */
     float timer = 0.0;        /* A timer to know when the tetrimino should fall down */
     float current_speed;      /* When timer == speed, tetrimino falls down */
@@ -61,20 +63,15 @@ int main(char argc, char **argv)
     field = create_field();
     
     current_tet = GetRandomValue(0, 6);
+    next_tet = GetRandomValue(0, 6);
     difficulty = DEFAULT_DIFF;
     current_speed = DEFAULT_SPEED - difficulty;
-    pos_x = FIELD_WIDTH / 2;
+    pos_x = (FIELD_WIDTH / 2) - (TET_SIZE / 2);
     pos_y = 0;
     
     while(!WindowShouldClose()){
         if (is_gameover == 0){
             timer += GetFrameTime(); /* Get time in seconds for last frame drawn */
-            
-            /* increase difficulty every 5 piece dropped */
-            if (piece_dropped == INCREASE_DIFF_EVERY && difficulty < MAX_DIFF){
-                difficulty += DIFF_INCREMENT;
-                piece_dropped = 0;
-            }
             
             /* Tetrimino falls down every 1 sec */
             if (timer >= current_speed){
@@ -89,11 +86,17 @@ int main(char argc, char **argv)
                     
                     /* Spawn a new tetrimino & reset values */
                     score += 25;
-                    current_tet = GetRandomValue(0, 6);
+                    current_tet = next_tet;
+                    next_tet = GetRandomValue(0, 6);
                     current_rotation = 0;
-                    pos_x = FIELD_WIDTH / 2;
+                    pos_x = (FIELD_WIDTH / 2) - (TET_SIZE / 2);
                     pos_y = 0;
                     piece_dropped++;
+                    
+                    /* Change difficulty */
+                    if ((piece_dropped % INCREASE_DIFF_EVERY == 0) && difficulty < MAX_DIFF)
+                        difficulty += DIFF_STEP;
+                    
                     
                     /* If the new piece does not fit, gameover */
                     if (does_collide(field, tetrimino, current_tet, current_rotation, pos_x, pos_y + 1) != 0)
@@ -108,8 +111,9 @@ int main(char argc, char **argv)
             if (IsKeyPressed(KEY_LEFT) && does_collide(field, tetrimino, current_tet, current_rotation, pos_x - 1, pos_y) == 0)
                 pos_x -= 1;
             
-            if (IsKeyDown(KEY_DOWN))
+            if (IsKeyDown(KEY_DOWN)){
                 current_speed= 0.05;
+            }
             else if (IsKeyReleased(KEY_DOWN))
                 current_speed = DEFAULT_SPEED - difficulty;
             
@@ -124,12 +128,20 @@ int main(char argc, char **argv)
         draw_tetrimino(tetrimino, current_tet, pos_x, pos_y, current_rotation, colors);
         
         /* Text Drawing*/
-        DrawText(TextFormat("SCORE: %d", score),(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE, 20, RAYWHITE);
+        DrawText(TextFormat("LEVEL: %d",((int)((difficulty - DEFAULT_DIFF) / DIFF_STEP) + 1)), (FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE, 20, RAYWHITE);
         
-        DrawText(TextFormat("DIFFICULTY: %f", difficulty),(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE + 20, 20, RAYWHITE);
+        DrawText("--SCORE--",(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE * 3, 20, RAYWHITE);
+        
+        DrawText(TextFormat("%d",score),(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE * 4, 20, RAYWHITE);
+        
+        
+        DrawText("--NEXT--",(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE * 6, 20, RAYWHITE);
+        
+        /* Draw next tetrimino */
+        draw_tetrimino(tetrimino, next_tet, (FIELD_WIDTH + 3), 12, 0, colors);
         
         if (is_gameover != 0)
-            DrawText("GameOver!!", (FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE + 40, 20, RAYWHITE);
+            DrawText("GameOver!!", (SCREEN_WIDTH / 2) - ((strlen("GameOver!!") - 1) * 20), (SCREEN_HEIGHT / 2) - 20, 40, RED);
         
         EndDrawing();
     }
@@ -150,10 +162,7 @@ unsigned char *create_field(void)
     /* Write walls of the field*/
     for (fy = 0; fy < FIELD_HEIGHT; fy++){
         for (fx = 0; fx < FIELD_WIDTH; fx++){
-            if(fy == FIELD_HEIGHT - 1 || fx == 0 || fx == FIELD_WIDTH -1)
-                f[fy * FIELD_WIDTH + fx] = 9;
-            else
-                f[fy * FIELD_WIDTH + fx] = 0;
+            f[fy * FIELD_WIDTH + fx] = (fy == FIELD_HEIGHT - 1 || fx == 0 || fx == FIELD_WIDTH -1) ? 9 : 0;
         }
     }
     
@@ -209,6 +218,7 @@ void check_lines(unsigned char *field, int pos_y, int *score)
 {
     int fy, fx, fy2;
     int c;
+    int lc = 0;
     
     for (fy = pos_y; fy < pos_y + TET_SIZE; fy++){
         if (fy != FIELD_HEIGHT - 1){
@@ -220,16 +230,18 @@ void check_lines(unsigned char *field, int pos_y, int *score)
             }
             
             if (c == FIELD_WIDTH){
+                lc++;
                 for (fy2 = fy; fy2 > 0; fy2--){
                     for (fx = 1; fx < FIELD_WIDTH - 1; fx++){
                         field[fy2 * FIELD_WIDTH + fx] = field[(fy2 - 1) * FIELD_WIDTH + fx];
                         field[fx] = (fx == 0 || fx == FIELD_WIDTH - 1) ? 9 : 0; 
                     }
                 }
-                *score += 100;
             }
         }
     }
+    if (lc != 0)
+        *score += (lc == 1) ? 100 : (100 * lc) * (1 + (float)(lc - 1) / 10.0);
 }
 
 /* draw_field: Draw field */
