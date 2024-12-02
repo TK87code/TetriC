@@ -204,12 +204,11 @@ int does_collide(unsigned char *field, char** tet, int tet_id, int rotation, int
     return 0;
 }
 
+/* check_lines: Check if there are complete lines, if so, delete the row and fall pieces above.*/
 void check_lines(unsigned char *field, int pos_y, int *score)
 {
-    int fy, fx;
+    int fy, fx, fy2;
     int c;
-    int lines_completed[FIELD_HEIGHT] = {0};
-    int target_fy;
     
     for (fy = pos_y; fy < pos_y + TET_SIZE; fy++){
         if (fy != FIELD_HEIGHT - 1){
@@ -221,33 +220,19 @@ void check_lines(unsigned char *field, int pos_y, int *score)
             }
             
             if (c == FIELD_WIDTH){
-                lines_completed[fy] = 1;
-                *score += 100;
-            }
-        }
-    }
-    
-    /* Moving down the row by number of line completed */
-    for (fy = pos_y; fy < pos_y + TET_SIZE; fy++){
-        if (lines_completed[fy] == 1){
-            
-            for (target_fy = fy; target_fy >= 0; target_fy--){
-                for (fx = 0; fx < FIELD_WIDTH; fx++){
-                    if (target_fy == 0){
-                        if (fx == 0 || fx == FIELD_WIDTH -1){
-                            field[target_fy * FIELD_WIDTH + fx] = 9;
-                        }else{
-                            field[target_fy * FIELD_WIDTH + fx] = 0;
-                        }
-                    }else{
-                        field[target_fy * FIELD_WIDTH + fx] = field[(target_fy - 1) * FIELD_WIDTH + fx];
+                for (fy2 = fy; fy2 > 0; fy2--){
+                    for (fx = 1; fx < FIELD_WIDTH - 1; fx++){
+                        field[fy2 * FIELD_WIDTH + fx] = field[(fy2 - 1) * FIELD_WIDTH + fx];
+                        field[fx] = (fx == 0 || fx == FIELD_WIDTH - 1) ? 9 : 0; 
                     }
                 }
+                *score += 100;
             }
         }
     }
 }
 
+/* draw_field: Draw field */
 void draw_field(unsigned char *field, Color *colors)
 {
     int fy, fx;
@@ -259,6 +244,7 @@ void draw_field(unsigned char *field, Color *colors)
     }
 }
 
+/* draw_tetrimino: Draw tetrimino */
 void draw_tetrimino(char** tet, int tet_id, int pos_x, int pos_y, int rotation, Color *colors)
 {
     int py, px;
@@ -271,6 +257,7 @@ void draw_tetrimino(char** tet, int tet_id, int pos_x, int pos_y, int rotation, 
     }
 }
 
+/* fix_tetrimino: Make a tetrimino object on the field(Write it onto the field memory). */
 void fix_tetrimino(unsigned char *field, char **tet, int tet_id, int pos_x, int pos_y, int rotation)
 {
     int py, px;
