@@ -16,7 +16,7 @@ javidx9 - Code-It-Yourself! Tetris - Programming from Scratch (Quick and Simple 
 https://youtu.be/8OK8_tHeCIA?si=gCaw5DYx0iLCktoF
 ## Author
 Takuya Kimura
-[twitter](https://https://x.com/Takuya_CLM)
+[twitter](https://x.com/Takuya_CLM)
 
 ## Licence
 Copyright 2024 Takuya Kimura
