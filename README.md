@@ -7,6 +7,7 @@ Tetris clone written in C with Raylib. This is created for educational purposes.
 Windows 10
 MSVC
 Raylib
+https://github.com/raysan5/raylib/tree/master
 ## Usage
 Press Arrow keys to move tetrimino. Press Z to rotate.
 ## Features
