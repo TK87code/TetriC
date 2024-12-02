@@ -1,49 +1,52 @@
 #include <raylib.h> /* https://www.raylib.com/index.html */
-#include <stdlib.h> /* malloc(), exit() */ 
+#include <stdlib.h>       /* calloc() */
 
-#define TET_SIZE 4 /* Size of tetrimino array in x&y */ 
+#define TET_SIZE 4        /* Size of tetrimino array in x&y */ 
 
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 450
-
-#define CELL_SIZE 16
-#define TILE_SIZE 15
-
-#define DEFAULT_SPEED 1.1
-
 #define SCREEN_OFFSET 2
 
-#define FIELD_WIDTH 12 /* Number of cols of the field including a wall */
-#define FIELD_HEIGHT 21 /* Number of rows of the field including a floor */
+#define CELL_SIZE 16      /* Size of cell (which contains tiles) */
+#define TILE_SIZE 15      /* Size of tile squares */
 
-char* tetrimino[6];
-unsigned char* field; 
-Color colors[9]; /* Array of Raylib colors, used for rectangle drawing */ 
-int score;
+#define FIELD_WIDTH 12    /* Number of cols of the field including a wall */
+#define FIELD_HEIGHT 21   /* Number of rows of the field including a floor */
+
+/* Game settings */
+#define DEFAULT_SPEED 1.1 /* Piece are forced to drop every this time */
+#define DEFAULT_DIFF 0.1  /* Default difficulty */
+#define MAX_DIFF 0.8
+#define INCREASE_DIFF_EVERY 5
+#define DIFF_INCREMENT 0.05
+
 
 /* Function Prototypes*/
+unsigned char* create_field(void);
 int rotate(int px, int py, int r);
-int does_collide(int tetrimino_id, int rotation, int pos_x, int pos_y);
-void check_lines(int pos_y);
-void draw_field(void);
+int does_collide(unsigned char *field, char **tet, int tet_id, int rotation, int pos_x, int pos_y);
+void check_lines(unsigned char *field, int pos_y, int *score);
+void draw_field(unsigned char *field, Color *colors);
+void draw_tetrimino(char **tet, int tet_id, int pos_x, int pos_y,int rotation, Color *colors);
+void fix_tetrimino(unsigned char *field, char **tet, int tet_id, int pox_x, int pos_y, int rotation);
 
-int main(char argc, char** argv)
+int main(char argc, char **argv)
 {
-    int fx, fy; /* x & y in the field array */
-    int px, py; /*x & y in the tetrimino array */
-    int current_tet; /* Current tetrimino id*/
+    char* tetrimino[7];
+    unsigned char* field;
+    Color colors[10] = {BLACK, SKYBLUE, YELLOW, GREEN, RED, BLUE, ORANGE, PURPLE, GOLD, GRAY}; /* Array of Raylib colors, used for rectangle drawing */ 
+    int pos_x, pos_y;         /* Current position of tetrimino piece */
+    int current_tet;          /* Current tetrimino id*/
     int current_rotation = 0; /* Current Rotation */
-    int pos_x = FIELD_WIDTH / 2; /* Current pos_x of tetrimino piece */
-    int pos_y = 0; /* Current pos_y of tetrimino piece */
-    float timer = 0.0; /* A timer to know when the tetrimino should fall down */
-    float difficulty = 0.1;
-    float current_speed;
-    int is_gameover = 0;
-    int piece_dropped = 0;
+    float timer = 0.0;        /* A timer to know when the tetrimino should fall down */
+    float current_speed;      /* When timer == speed, tetrimino falls down */
+    float difficulty;         /* Amount of seconds to subtract from speed */
+    int is_gameover = 0;      /* A flag to know if it's game over. */
+    int piece_dropped = 0;    /* Number of piace dropped. */
+    int score = 0;            /* A strage of score value */
     
     /* Window Initialization */
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tetris");
-    
     SetTargetFPS(60);
     
     /* Create tetrimonos 4*4 string */ 
@@ -55,60 +58,34 @@ int main(char argc, char** argv)
     tetrimino[5] = ".x...x...xx....."; /* L-tetrimino */
     tetrimino[6] = "..x..xxx........"; /* T-tetrimino */
     
-    colors[0] = BLACK;
-    colors[1] = SKYBLUE;
-    colors[2] = YELLOW;
-    colors[3] = GREEN;
-    colors[4] = RED;
-    colors[5] = BLUE;
-    colors[6] = ORANGE;
-    colors[7] = PURPLE;
-    colors[8] = GOLD;
-    colors[9] = GRAY;
-    
-    /* Create field */ 
-    field = malloc(FIELD_WIDTH * FIELD_HEIGHT * sizeof(unsigned char));
-    memset(field, 0, FIELD_WIDTH * FIELD_HEIGHT * sizeof(unsigned char));
-    
-    /* Write walls of the field*/
-    for (fy = 0; fy < FIELD_HEIGHT; fy++){
-        for (fx = 0; fx < FIELD_WIDTH; fx++){
-            if(fy == FIELD_HEIGHT - 1 || fx == 0 || fx == FIELD_WIDTH -1)
-                field[fy * FIELD_WIDTH + fx] = 9; /* This number will be an index of color array -> GRAY*/
-        }
-    }
+    field = create_field();
     
     current_tet = GetRandomValue(0, 6);
+    difficulty = DEFAULT_DIFF;
     current_speed = DEFAULT_SPEED - difficulty;
+    pos_x = FIELD_WIDTH / 2;
+    pos_y = 0;
     
     while(!WindowShouldClose()){
         if (is_gameover == 0){
             timer += GetFrameTime(); /* Get time in seconds for last frame drawn */
             
             /* increase difficulty every 5 piece dropped */
-            if (piece_dropped  == 5){
-                if (difficulty < 0.8) /* Max Difficulty -> MAX_DIFFICULTY */
-                    difficulty += 0.05;
+            if (piece_dropped == INCREASE_DIFF_EVERY && difficulty < MAX_DIFF){
+                difficulty += DIFF_INCREMENT;
                 piece_dropped = 0;
             }
             
             /* Tetrimino falls down every 1 sec */
             if (timer >= current_speed){
                 timer = 0.0;
-                if (does_collide(current_tet, current_rotation, pos_x, pos_y + 1) == 0){
+                if (does_collide(field, tetrimino, current_tet, current_rotation, pos_x, pos_y + 1) == 0)
                     pos_y += 1;
-                }else{
-                    /* Make the current tetrimino an object in the field */
-                    for (py = 0; py < TET_SIZE; py++){
-                        for (px = 0; px < TET_SIZE; px++){
-                            if (tetrimino[current_tet][rotate(px, py, current_rotation)] == 'x'){
-                                field[(pos_y + py) * FIELD_WIDTH + (pos_x + px)] = current_tet + 1;
-                            }
-                        }
-                    }
+                else{
+                    fix_tetrimino(field, tetrimino, current_tet, pos_x, pos_y, current_rotation);
                     
                     /* Check if there are completed line in the field */
-                    check_lines(pos_y);
+                    check_lines(field, pos_y, &score);
                     
                     /* Spawn a new tetrimino & reset values */
                     score += 25;
@@ -119,53 +96,40 @@ int main(char argc, char** argv)
                     piece_dropped++;
                     
                     /* If the new piece does not fit, gameover */
-                    if (does_collide(current_tet, current_rotation, pos_x, pos_y + 1) != 0){
+                    if (does_collide(field, tetrimino, current_tet, current_rotation, pos_x, pos_y + 1) != 0)
                         is_gameover = 1;
-                    }
                 }
             }
             
             /* Input Handling */
-            if (IsKeyPressed(KEY_RIGHT)){
-                if (does_collide(current_tet, current_rotation, pos_x + 1, pos_y) == 0)
-                    pos_x += 1;
-            }else if (IsKeyPressed(KEY_LEFT)){
-                if (does_collide(current_tet, current_rotation, pos_x - 1, pos_y) == 0)
-                    pos_x -= 1;
-            }else if (IsKeyDown(KEY_DOWN)){
+            if (IsKeyPressed(KEY_RIGHT) && does_collide(field, tetrimino, current_tet, current_rotation, pos_x + 1, pos_y) == 0)
+                pos_x += 1;
+            
+            if (IsKeyPressed(KEY_LEFT) && does_collide(field, tetrimino, current_tet, current_rotation, pos_x - 1, pos_y) == 0)
+                pos_x -= 1;
+            
+            if (IsKeyDown(KEY_DOWN))
                 current_speed= 0.05;
-            }else if (IsKeyReleased(KEY_DOWN)){
+            else if (IsKeyReleased(KEY_DOWN))
                 current_speed = DEFAULT_SPEED - difficulty;
-            }else if (IsKeyPressed(KEY_Z)){
-                if (does_collide(current_tet, current_rotation + 1, pos_x, pos_y) == 0)
-                    current_rotation += 1;
-            }
+            
+            if (IsKeyPressed(KEY_Z) && does_collide(field, tetrimino, current_tet, current_rotation + 1, pos_x, pos_y) == 0)
+                current_rotation += 1;
         }
         
         BeginDrawing();
         ClearBackground(colors[0]); /* Clear screen with BLACK */
         
-        /* Drawing Field*/
-        draw_field();
-        
-        /* Draw Tetrimino*/
-        for (py = 0; py < TET_SIZE; py++){
-            for (px = 0; px < TET_SIZE; px++){
-                if (tetrimino[current_tet][rotate(px, py, current_rotation)] == 'x')
-                    DrawRectangle((pos_x + px + SCREEN_OFFSET) * CELL_SIZE, (pos_y + py + SCREEN_OFFSET) * CELL_SIZE, TILE_SIZE, TILE_SIZE, colors[current_tet + 1]);
-            }
-        }
+        draw_field(field, colors);
+        draw_tetrimino(tetrimino, current_tet, pos_x, pos_y, current_rotation, colors);
         
         /* Text Drawing*/
-        
         DrawText(TextFormat("SCORE: %d", score),(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE, 20, RAYWHITE);
         
         DrawText(TextFormat("DIFFICULTY: %f", difficulty),(FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE + 20, 20, RAYWHITE);
         
-        
-        if (is_gameover != 0){
+        if (is_gameover != 0)
             DrawText("GameOver!!", (FIELD_WIDTH + SCREEN_OFFSET + 2) * CELL_SIZE, SCREEN_OFFSET * CELL_SIZE + 40, 20, RAYWHITE);
-        }
         
         EndDrawing();
     }
@@ -173,6 +137,27 @@ int main(char argc, char** argv)
     CloseWindow();
     free(field);
     return 0;
+}
+
+/* create_field: This function allocate memory for field array, places walls on it. */
+unsigned char *create_field(void)
+{
+    int fx, fy;
+    unsigned char *f;
+    
+    f = malloc(FIELD_WIDTH * FIELD_HEIGHT * sizeof(unsigned char));
+    
+    /* Write walls of the field*/
+    for (fy = 0; fy < FIELD_HEIGHT; fy++){
+        for (fx = 0; fx < FIELD_WIDTH; fx++){
+            if(fy == FIELD_HEIGHT - 1 || fx == 0 || fx == FIELD_WIDTH -1)
+                f[fy * FIELD_WIDTH + fx] = 9;
+            else
+                f[fy * FIELD_WIDTH + fx] = 0;
+        }
+    }
+    
+    return f;
 }
 
 /* rotate: this function returns calculated index of tetrimino string when rotate given degrees. */
@@ -202,7 +187,8 @@ int rotate(int px, int py, int r)
 }
 
 /* does_collode: Check if the piece collide with a field objects or boundary. Return 0 on false, 1 on true.*/
-int does_collide(int tetrimino_id, int rotation, int pos_x, int pos_y){
+int does_collide(unsigned char *field, char** tet, int tet_id, int rotation, int pos_x, int pos_y)
+{
     int px, py;
     int p_i; /* piece index*/
     
@@ -210,16 +196,16 @@ int does_collide(int tetrimino_id, int rotation, int pos_x, int pos_y){
         for (px = 0; px < TET_SIZE; px++){
             p_i = rotate(px, py, rotation);
             
-            if(tetrimino[tetrimino_id][p_i] != '.' && field[(pos_y + py) * FIELD_WIDTH + (pos_x + px)] != 0){
+            if(tet[tet_id][p_i] != '.' && field[(pos_y + py) * FIELD_WIDTH + (pos_x + px)] != 0)
                 return 1;
-            }
         }
     }
     
     return 0;
 }
 
-void check_lines(int pos_y){
+void check_lines(unsigned char *field, int pos_y, int *score)
+{
     int fy, fx;
     int c;
     int lines_completed[FIELD_HEIGHT] = {0};
@@ -236,7 +222,7 @@ void check_lines(int pos_y){
             
             if (c == FIELD_WIDTH){
                 lines_completed[fy] = 1;
-                score += 100;
+                *score += 100;
             }
         }
     }
@@ -262,12 +248,38 @@ void check_lines(int pos_y){
     }
 }
 
-void draw_field(){
+void draw_field(unsigned char *field, Color *colors)
+{
     int fy, fx;
     
     for (fy = 0; fy < FIELD_HEIGHT; fy++){
         for(fx = 0; fx < FIELD_WIDTH; fx++){
             DrawRectangle((fx + SCREEN_OFFSET) * CELL_SIZE,  (fy + SCREEN_OFFSET) * CELL_SIZE, TILE_SIZE, TILE_SIZE, colors[field[fy * FIELD_WIDTH + fx]]);
+        }
+    }
+}
+
+void draw_tetrimino(char** tet, int tet_id, int pos_x, int pos_y, int rotation, Color *colors)
+{
+    int py, px;
+    
+    for (py = 0; py < TET_SIZE; py++){
+        for (px = 0; px < TET_SIZE; px++){
+            if (tet[tet_id][rotate(px, py, rotation)] == 'x')
+                DrawRectangle((pos_x + px + SCREEN_OFFSET) * CELL_SIZE, (pos_y + py + SCREEN_OFFSET) * CELL_SIZE, TILE_SIZE, TILE_SIZE, colors[tet_id + 1]);
+        }
+    }
+}
+
+void fix_tetrimino(unsigned char *field, char **tet, int tet_id, int pos_x, int pos_y, int rotation)
+{
+    int py, px;
+    
+    for (py = 0; py < TET_SIZE; py++){
+        for (px = 0; px < TET_SIZE; px++){
+            if (tet[tet_id][rotate(px, py, rotation)] == 'x'){
+                field[(pos_y + py) * FIELD_WIDTH + (pos_x + px)] = tet_id + 1;
+            }
         }
     }
 }
