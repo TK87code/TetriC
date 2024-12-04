@@ -48,8 +48,9 @@ int main(char argc, char **argv)
     int score = 0;            /* A strage of score value */
     
     /* Window Initialization */
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tetris");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "TetriC");
     SetTargetFPS(60);
+    SetTraceLogLevel(LOG_ERROR);
     
     /* Create tetrimonos 4*4 string */ 
     tetrimino[0] = "..x...x...x...x."; /* I-tetrimino */
